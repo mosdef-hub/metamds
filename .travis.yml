@@ -1,0 +1,32 @@
+language: c
+
+sudo: false
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+
+install:
+  - source devtools/travis-ci/install.sh
+
+script:
+  - conda config --add channels https://conda.anaconda.org/imodels
+  - conda config --add channels https://conda.anaconda.org/omnia
+  - conda config --add channels https://conda.anaconda.org/patrickfuller
+  - conda build devtools/conda-recipe
+
+env:
+  matrix:
+    - python=2.7  CONDA_PY=27
+    - python=3.4  CONDA_PY=34
+    - python=3.5  CONDA_PY=35
+
+  global:
+    # BINSTAR
+    - secure: "Rbt/6qSNB/6hvDKboKqo7iS1I+Zhye5u9k/RxNZCpaUQUiledjuzsBo+vppYskb7vHS+QRT+leDm7gUo/ZOv0DahLi4ScCIhvPSYTtWu+hKlp7TcI0woi5H7gCmGvP8bEYVPlHm3AT54xh7dzpfOca5eHpo8dVtvJhNTqbY8jPw="
+    # GITHUB
+    - secure: "gtj9VfJQzQb4KL23+aRfimQgXBK88JHEqmN6zi+MCCLrjhnXs7+qWoAGi4kqwNeNd9fXSK5Wk+PfPHEPjP8MFyjEhWBL9LD9ct+59RVx8bf3pe2WOWktpf440XxwpLuDEWrV01Ly4FKRqYTOvtz7pYV5y/JgCyCP76MwkWhZvG4="
+
+after_success:
+  - source devtools/travis-ci/post_binstar.sh
+  - source devtools/travis-ci/create_docs.sh
