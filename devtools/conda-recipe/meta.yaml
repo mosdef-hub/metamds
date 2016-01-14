@@ -13,7 +13,7 @@ test:
   requires:
     - pytest
   commands:
-    - py.test --pyargs metamds
+    - py.test -v --pyargs metamds
 
 about:
   home: http://imodels.github.io/metamds

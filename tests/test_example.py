@@ -1,9 +1,8 @@
-from metamds.computing import Task, Project
+import metamds as mds
 
 
 def test_lysozyme_tutorial():
-    tutorial = Project(name='lysozyme')
-
+    tutorial = mds.Simulation(name='lysozyme')
 
     pdb2gmx = 'echo 6 | gmx pdb2gmx -f 1AKI.pdb -o 1AKI_processed.gro -water spce'
     editconf = 'gmx editconf -f 1AKI_processed.gro -o 1AKI_newbox.gro -c -d 1.0 -bt cubic'
@@ -12,20 +11,15 @@ def test_lysozyme_tutorial():
     genion = 'echo 13 | gmx genion -s ions.tpr -o 1AKI_solv_ions.gro -p topol.top -pname NA -nname CL -nn 8'
 
     script = (pdb2gmx, editconf, solvate, ion_grompp, genion)
-    build = Task(name='build', project=tutorial, script=script, input_dir='lysozyme')
-
+    build = mds.Task(name='build', project=tutorial, script=script, input_dir='lysozyme')
 
     em_grompp = 'gmx grompp -f minim.mdp -c 1AKI_solv_ions.gro -p topol.top -o em.tpr'
     em_mdrun = 'gmx mdrun -v -deffnm em'
 
     script = (em_grompp, em_mdrun)
-    minimize = Task(name='minimize', project=tutorial, script=script, input_dir='lysozyme')
+    minimize = mds.Task(name='minimize', project=tutorial, script=script, input_dir='lysozyme')
 
     tutorial.add_task(build)
     tutorial.add_task(minimize)
     tutorial.execute()
     print(tutorial.dir)
-
-if __name__ == '__main__':
-    test_lysozyme_tutorial()
-

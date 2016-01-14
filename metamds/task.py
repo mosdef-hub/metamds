@@ -14,9 +14,9 @@ class Task(object):
         # Copy the input files into the project dir.
         # if input_dir is None:
         #     input_dir = os.
-        self.input_dir = input_dir
+        self.input_dir = os.path.abspath(input_dir)
 
-    def execute(self):
+    def execute(self, remote='', credentials=None):
         os.chdir(self.input_dir)
         for line in self.script:
             print(datetime.now(), '> Running: ', line)
@@ -34,4 +34,5 @@ class Task(object):
             stdout.write(out)
             stderr.write(err)
 
-
+class Job(object):
+    pass
