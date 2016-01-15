@@ -1,6 +1,6 @@
 from glob import glob
-import os
 from datetime import datetime
+import os
 import shlex
 import subprocess
 from subprocess import PIPE
@@ -25,18 +25,20 @@ class Task(object):
         self.input_dir = os.path.abspath(input_dir)
 
     def execute(self, remote='', credentials=None):
-
         # TODO: proper folder management, potential copying of files
         os.chdir(self.input_dir)
 
         for line in self.script:
             print(datetime.now().strftime(time_fmt), '> Running: ', line)
+
             args = shlex.split(line)
             proc = subprocess.Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             self.current_proc = proc
             out, err = proc.communicate()
             self.log_outputs(out, err)
+
             print(datetime.now().strftime(time_fmt), '> Success! ')
+
         #os.chdir(self.project.dir)
 
     def log_outputs(self, out, err):

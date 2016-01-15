@@ -22,6 +22,8 @@ class Simulation(object):
         if name is None:
             name = 'project'
         self.name = name
+        self._tasks = OrderedDict()
+        self.template = template
 
         if not project_dir:
             self._tmp_dir = tempfile.mkdtemp(prefix='metamds_')
@@ -30,17 +32,7 @@ class Simulation(object):
         else:
             if not os.path.isdir(project_dir):
                 os.mkdir(project_dir)
-
         self.dir = os.path.abspath(project_dir)
-
-        self._tasks = OrderedDict()
-
-        # if web_address:
-        #    download
-        # elif python function:
-        #
-        # elif bunch of strings:
-        self.template = template
 
     def tasks(self):
         yield from self._tasks.values()
@@ -65,12 +57,13 @@ class Simulation(object):
     def parametrize(self, **parameters):
         if hasattr(self.template, '__call__'):
             script = self.template(**parameters)
+        # elif is_url(self.template):
+        #     treat as blockly and download from github
         elif _is_iterable_of_strings(self.template):
-            raise NotImplementedError
-            # script = list()
-            # for command in self.template:
-            #     command.format(**parameters)
-            #     script.append(command)
+            script = list()
+            for command in self.template:
+                command.format(**parameters)
+                script.append(command)
         else:
             script = None
 
