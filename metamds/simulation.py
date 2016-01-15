@@ -35,7 +35,8 @@ class Simulation(object):
         self.dir = os.path.abspath(project_dir)
 
     def tasks(self):
-        yield from self._tasks.values()
+        for v in self._tasks.values():
+            yield v
 
     @property
     def n_tasks(self):
