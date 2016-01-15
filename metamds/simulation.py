@@ -3,6 +3,7 @@ import os
 import tempfile
 
 from metamds import Task
+from six import string_types
 
 
 class Simulation(object):
@@ -64,12 +65,27 @@ class Simulation(object):
     def parametrize(self, **parameters):
         if hasattr(self.template, '__call__'):
             script = self.template(**parameters)
-        # elif isinstance(self.template, tuple_of_strings):
-        #     script = list()
-        #     for command in self.template:
-        #         command.format(**parameters)
-        #         script.append(command)
+        elif _is_iterable_of_strings(self.template):
+            raise NotImplementedError
+            # script = list()
+            # for command in self.template:
+            #     command.format(**parameters)
+            #     script.append(command)
+        else:
+            script = None
+
+        if not _is_iterable_of_strings(script):
+            raise ValueError('Unusable template: {}\n Templates should either '
+                             'be an iterable of strings or a function that '
+                             'returns an iterable of strings.'.format(self.template))
 
         task = Task(name='ethane', project=self, script=script, input_dir='.')
         self.add_task(task)
         return task
+
+
+def _is_iterable_of_strings(script):
+    try:
+        return all(isinstance(line, string_types) for line in script)
+    except:
+        return False
