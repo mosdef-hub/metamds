@@ -41,6 +41,47 @@ class Task(object):
         self.current_proc = None
         self._setup_local_dir()
 
+    def _setup_local_dir(self):
+        self.dir = os.path.join(self.project.dir, self.name)
+        if not os.path.isdir(self.dir):
+            os.mkdir(self.dir)
+
+        for in_file_path in self.project.input_files:
+            # TODO: tidy up
+            in_file_name = os.path.split(in_file_path)[1]
+            link_path = os.path.join(self.dir, in_file_name)
+
+            cwd = os.getcwd()
+            os.chdir(self.dir)
+
+            rel_in_path = os.path.relpath(in_file_path, self.dir)
+            rel_link_path = os.path.relpath(link_path, self.dir)
+
+            os.symlink(rel_in_path, rel_link_path)
+            os.chdir(cwd)
+
+    def _setup_remote_dir(self, client, host, user):
+        stdin, stdout, stderr = client.exec_command('mktemp -d; pwd')
+        if stderr.readlines():
+            raise IOError(stderr.readlines()[0].rstrip())
+        tmp_dir = stdout.readlines()[0].rstrip()
+        home = stdout.readlines()[1].rstrip()
+        # TODO: tidy up
+        self.tmp_dir = os.path.join(home, tmp_dir[5:])
+
+        stdin, stdout, stderr = client.exec_command('rsync -r {tmp_dir} ~'.format(tmp_dir=tmp_dir))
+        if stderr.readlines():
+            raise IOError(stderr.readlines()[0].rstrip())
+
+        cmd = 'rsync -h --progress --partial {src} {user}@{host}:{dst}'.format(
+            src=' '.join(self.project.input_files), dst=self.tmp_dir,
+            user=user, host=host)
+        self._subprocess_and_log(cmd)
+
+        cmd = 'rsync -r -h --links --progress --partial {src} {user}@{host}:{dst}'.format(
+            src=self.project.dir, dst=self.tmp_dir, user=user, host=host)
+        self._subprocess_and_log(cmd)
+
     def execute(self, hostname='', username=''):
         if hostname:
             client = SSHClient()
@@ -64,29 +105,6 @@ class Task(object):
 
         stdin, stdout, stderr = client.exec_command('qsub {}'.format(pbs_filename))
 
-    def _setup_remote_dir(self, client, host, user):
-        stdin, stdout, stderr = client.exec_command('mktemp -d; pwd')
-        if stderr.readlines():
-            raise IOError(stderr.readlines()[0].rstrip())
-        tmp_dir = stdout.readlines()[0].rstrip()
-        home = stdout.readlines()[1].rstrip()
-
-        stdin, stdout, stderr = client.exec_command('rsync -r {tmp_dir} ~'.format(tmp_dir=tmp_dir))
-        if stderr.readlines():
-            raise IOError(stderr.readlines()[0].rstrip())
-
-        home = stdout.readlines()[0].rstrip()
-        self.tmp_dir = os.path.join(home, tmp_dir[5:])
-
-        cmd = 'rsync -h --progress --partial {src} {user}@{host}:{dst}'.format(
-            src=' '.join(self.project.input_files), dst=self.tmp_dir,
-            user=user, host=host)
-        self._subprocess_and_log(cmd)
-
-        cmd = 'rsync -r -h --links --progress --partial {src} {user}@{host}:{dst}'.format(
-            src=self.project.dir, dst=self.tmp_dir, user=user, host=host)
-        self._subprocess_and_log(cmd)
-
     def _execute_local(self):
         cwd = os.getcwd()
         os.chdir(self.dir)
@@ -98,33 +116,12 @@ class Task(object):
 
         os.chdir(cwd)
 
-    def _setup_local_dir(self):
-        self.dir = os.path.join(self.project.dir, self.name)
-        if not os.path.isdir(self.dir):
-            os.mkdir(self.dir)
-
-        for in_file_path in self.project.input_files:
-            # TODO: tidy up
-            in_file_name = os.path.split(in_file_path)[1]
-            link_path = os.path.join(self.dir, in_file_name)
-
-            cwd = os.getcwd()
-            os.chdir(self.dir)
-
-            rel_in_path = os.path.relpath(in_file_path, self.dir)
-            rel_link_path = os.path.relpath(link_path, self.dir)
-
-            os.symlink(rel_in_path, rel_link_path)
-            os.chdir(cwd)
-
     def _subprocess_and_log(self, line):
         args = shlex.split(line)
         proc = subprocess.Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         self.current_proc = proc
         out, err = proc.communicate()
-        self.log_outputs(out, err)
 
-    def log_outputs(self, out, err):
         stdout_path = os.path.join(self.project.dir, self.name + '_stdout.txt')
         stderr_path = os.path.join(self.project.dir, self.name + '_stderr.txt')
         with open(stdout_path, 'ab') as stdout, open(stderr_path, 'ab') as stderr:
