@@ -18,18 +18,13 @@ class Simulation(object):
 
     """
 
-    def __init__(self, name=None, template='', input_dir='', project_dir=''):
+    def __init__(self, name=None, template='', project_dir='', input_dir=''):
 
         if name is None:
             name = 'project'
         self.name = name
         self._tasks = OrderedDict()
         self.template = template
-
-        if not input_dir:
-            self.input_dir = os.getcwd()
-        self.input_files = [f for f in glob('{}/*'.format(self.input_dir))
-                            if not f.endswith(('.py', '.ipynb'))]
 
         if not project_dir:
             self._tmp_dir = tempfile.mkdtemp(prefix='metamds_')
@@ -38,8 +33,13 @@ class Simulation(object):
         else:
             if not os.path.isdir(project_dir):
                 os.mkdir(project_dir)
-
         self.dir = os.path.abspath(project_dir)
+
+        if not input_dir:
+            self.input_dir = os.getcwd()
+        self.input_files = [f for f in glob('{}/*'.format(self.input_dir))
+                            if not f.endswith(('.py', '.ipynb')) and
+                            f != self.dir]
 
     def tasks(self):
         for v in self._tasks.values():
@@ -63,7 +63,11 @@ class Simulation(object):
             task.execute()
 
     def parametrize(self, **parameters):
-        parameters['input_dir'] = self.input_dir
+        task = Task(project=self)
+        self.add_task(task)
+
+        parameters['input_dir'] = os.path.relpath(self.input_dir, task.dir)
+
         if hasattr(self.template, '__call__'):
             script = self.template(**parameters)
         # elif is_url(self.template):
@@ -81,8 +85,7 @@ class Simulation(object):
                              'be an iterable of strings or a function that '
                              'returns an iterable of strings.'.format(self.template))
 
-        task = Task(project=self, script=script)
-        self.add_task(task)
+        task.script = script
         return task
 
 
