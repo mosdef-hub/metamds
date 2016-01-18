@@ -22,8 +22,8 @@ PBS_HEADER = """#!/bin/sh -l
 #PBS -q low
 #PBS -N {name}
 
-cd $PBS_O_WORKDIR/{output}/{name}
-
+echo $PWD
+cd {tmp_dir}/{output}/{name}
 echo $PWD
 
 module load gromacs
@@ -56,22 +56,27 @@ class Task(object):
         sftp = client.open_sftp()
         pbs_filename = os.path.join(self.tmp_dir, '{}.pbs'.format(self.name))
         with sftp.open(pbs_filename, 'w') as fh:
-            pbs_file = ''.join((PBS_HEADER.format(walltime=walltime, name=self.name, output=os.path.basename(self.project.dir)),
-                               '\n'.join(self.script)))
-            fh.write(pbs_file)
+            header = PBS_HEADER.format(walltime=walltime, name=self.name,
+                                       output=os.path.basename(self.project.dir),
+                                       tmp_dir=self.tmp_dir)
+            body = '\n'.join(self.script)
+            fh.write(''.join((header, body)))
 
-        stdin, stdout, stderr = client.exec_command('cd {}'.format(self.tmp_dir))
         stdin, stdout, stderr = client.exec_command('qsub {}'.format(pbs_filename))
-        print(stdout.readlines())
-        print(stderr.readlines())
-        import ipdb; ipdb.set_trace()
 
     def _setup_remote_dir(self, client, host, user):
-        stdin, stdout, stderr = client.exec_command('mktemp -d')
+        stdin, stdout, stderr = client.exec_command('mktemp -d; pwd')
         if stderr.readlines():
             raise IOError(stderr.readlines()[0].rstrip())
-        else:
-            self.tmp_dir = stdout.readlines()[0].rstrip()
+        tmp_dir = stdout.readlines()[0].rstrip()
+        home = stdout.readlines()[1].rstrip()
+
+        stdin, stdout, stderr = client.exec_command('rsync -r {tmp_dir} ~'.format(tmp_dir=tmp_dir))
+        if stderr.readlines():
+            raise IOError(stderr.readlines()[0].rstrip())
+
+        home = stdout.readlines()[0].rstrip()
+        self.tmp_dir = os.path.join(home, tmp_dir[5:])
 
         cmd = 'rsync -h --progress --partial {src} {user}@{host}:{dst}'.format(
             src=' '.join(self.project.input_files), dst=self.tmp_dir,
