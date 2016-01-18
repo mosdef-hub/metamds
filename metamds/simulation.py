@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from glob import glob
 import os
 import tempfile
 
@@ -17,11 +18,18 @@ class Simulation(object):
 
     """
 
-    def __init__(self, name=None, template='', project_dir=''):
+    def __init__(self, name=None, template='', input_dir='', project_dir=''):
 
         if name is None:
             name = 'project'
         self.name = name
+        self._tasks = OrderedDict()
+        self.template = template
+
+        if not input_dir:
+            self.input_dir = os.getcwd()
+        self.input_files = [f for f in glob('{}/*'.format(self.input_dir))
+                            if not f.endswith(('.py', '.ipynb'))]
 
         if not project_dir:
             self._tmp_dir = tempfile.mkdtemp(prefix='metamds_')
@@ -32,15 +40,6 @@ class Simulation(object):
                 os.mkdir(project_dir)
 
         self.dir = os.path.abspath(project_dir)
-
-        self._tasks = OrderedDict()
-
-        # if web_address:
-        #    download
-        # elif python function:
-        #
-        # elif bunch of strings:
-        self.template = template
 
     def tasks(self):
         for v in self._tasks.values():
@@ -64,14 +63,16 @@ class Simulation(object):
             task.execute()
 
     def parametrize(self, **parameters):
+        parameters['input_dir'] = self.input_dir
         if hasattr(self.template, '__call__'):
             script = self.template(**parameters)
+        # elif is_url(self.template):
+        #     treat as blockly and download from github
         elif _is_iterable_of_strings(self.template):
-            raise NotImplementedError
-            # script = list()
-            # for command in self.template:
-            #     command.format(**parameters)
-            #     script.append(command)
+            script = list()
+            for command in self.template:
+                command.format(**parameters)
+                script.append(command)
         else:
             script = None
 
@@ -80,7 +81,7 @@ class Simulation(object):
                              'be an iterable of strings or a function that '
                              'returns an iterable of strings.'.format(self.template))
 
-        task = Task(name='ethane', project=self, script=script, input_dir='.')
+        task = Task(project=self, script=script)
         self.add_task(task)
         return task
 
