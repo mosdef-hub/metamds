@@ -1,3 +1,4 @@
+import os
 import metamds as mds
 
 
@@ -11,7 +12,7 @@ def test_lysozyme_tutorial():
     genion = 'echo 13 | gmx genion -s ions.tpr -o 1AKI_solv_ions.gro -p topol.top -pname NA -nname CL -nn 8'
 
     script = (pdb2gmx, editconf, solvate, ion_grompp, genion)
-    build = mds.Task(name='build', project=tutorial, script=script, input_dir='lysozyme')
+    build = mds.Task(name='build', project=tutorial, script=script, input_dir=os.path.join(os.path.dirname(os.path.realpath(__file__)),'lysozyme'))
 
     em_grompp = 'gmx grompp -f minim.mdp -c 1AKI_solv_ions.gro -p topol.top -o em.tpr'
     em_mdrun = 'gmx mdrun -v -deffnm em'
