@@ -1,24 +1,32 @@
 from collections import OrderedDict
 from glob import glob
+import logging
 import os
 import tempfile
 
-from metamds import Task
 from six import string_types
+
+from metamds import Task
+from metamds.io import cmd_line
 
 
 class Simulation(object):
     """
 
-    Parameters
+    Attributes
     ----------
     name :
+    tasks :
     template :
-    project_dir :
+    output_dir :
+    input_dir :
+    remote_dir :
+    info :
+    debug :
 
     """
 
-    def __init__(self, name=None, template='', project_dir='', input_dir=''):
+    def __init__(self, name=None, template='', output_dir='', input_dir=''):
 
         if name is None:
             name = 'project'
@@ -26,47 +34,110 @@ class Simulation(object):
         self._tasks = OrderedDict()
         self.template = template
 
-        if not project_dir:
+        if not output_dir:
             self._tmp_dir = tempfile.mkdtemp(prefix='metamds_')
-            project_dir = os.path.join(self._tmp_dir, self.name)
-            os.mkdir(project_dir)
+            output_dir = os.path.join(self._tmp_dir, self.name)
+            os.mkdir(output_dir)
         else:
-            if not os.path.isdir(project_dir):
-                os.mkdir(project_dir)
-        self.dir = os.path.abspath(project_dir)
+            if not os.path.isdir(output_dir):
+                os.mkdir(output_dir)
+        self.output_dir = os.path.abspath(output_dir)
 
         if not input_dir:
             self.input_dir = os.getcwd()
         self.input_files = [f for f in glob('{}/*'.format(self.input_dir))
                             if not f.endswith(('.py', '.ipynb')) and
-                            f != self.dir]
+                            f != self.output_dir]
+
+        self.remote_dir = None
+
+        self.info = logging.getLogger('{}_info'.format(self.name))
+        self.info.setLevel(logging.INFO)
+        log_file = os.path.join(self.output_dir, '{}_info.log'.format(self.name))
+        handler = logging.FileHandler(log_file)
+        formatter = logging.Formatter('[%(asctime)s] %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        self.info.addHandler(handler)
+
+        self.debug = logging.getLogger('{}_debug'.format(self.name))
+        self.debug.setLevel(logging.DEBUG)
+        log_file = os.path.join(self.output_dir, '{}_debug.log'.format(self.name))
+        handler = logging.FileHandler(log_file)
+        formatter = logging.Formatter('[%(asctime)s] %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        self.debug.addHandler(handler)
+
+    def create_remote_dir(self, client, host, user):
+        """Create a copy of all input files and `output_dir` on a remote host.
+
+        Parameters
+        ----------
+        client : paramiko.SSHClient
+        host : str
+        user :  str
+
+        """
+        stdin, stdout, stderr = client.exec_command('mktemp -d; pwd')
+        if stderr.readlines():
+            raise IOError(stderr.readlines()[0].rstrip())
+        remote_dir, home = (line.rstrip() for line in stdout.readlines())
+        # TODO: tidy up
+        self.remote_dir = os.path.join(home, remote_dir[5:])
+
+        stdin, stdout, stderr = client.exec_command('rsync -r {tmp_dir} ~'.format(tmp_dir=remote_dir))
+        if stderr.readlines():
+            raise IOError(stderr.readlines()[0].rstrip())
+
+        cmd = 'rsync -h --progress --partial {src} {user}@{host}:{dst}'.format(
+            src=' '.join(self.input_files), dst=self.remote_dir,
+            user=user, host=host)
+        out, err = cmd_line(cmd)
+        if err:
+            raise IOError(err)
+        for line in out.splitlines():
+            self.debug.debug(line)
+
+        cmd = 'rsync -r -h --links --progress --partial {src} {user}@{host}:{dst}'.format(
+            src=self.output_dir, dst=self.remote_dir, user=user, host=host)
+        out, err = cmd_line(cmd)
+        if err:
+            raise IOError(err)
+        for line in out.splitlines():
+            self.debug.debug(line)
 
     def tasks(self):
+        """Yield all tasks in this simulation. """
         for v in self._tasks.values():
             yield v
 
     @property
     def n_tasks(self):
+        """Return the number of tasks in this simulation. """
         return len(self._tasks)
 
     def task_names(self):
+        """Return the names of all tasks in this simulation. """
         for task in self._tasks:
             yield task.name
 
     def add_task(self, task):
+        """Add a task to this simulation. """
         if not task.name:
             task.name = 'task_{:d}'.format(self.n_tasks + 1)
+        task.create_dir()
         self._tasks[task.name] = task
 
     def execute(self):
+        """Execute all tasks in this simulation. """
         for task in self.tasks():
             task.execute()
 
     def parametrize(self, **parameters):
-        task = Task(project=self)
+        """Parametrize and add a task to this simulation. """
+        task = Task(simulation=self)
         self.add_task(task)
 
-        parameters['input_dir'] = os.path.relpath(self.input_dir, task.dir)
+        parameters['input_dir'] = os.path.relpath(self.input_dir, task.output_dir)
 
         if hasattr(self.template, '__call__'):
             script = self.template(**parameters)
