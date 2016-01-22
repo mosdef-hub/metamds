@@ -3,7 +3,7 @@ import os
 
 from paramiko import SSHClient
 
-from metamds.io import cmd_line
+from metamds.io import cmd_line, rsync_from
 
 EXTENSIONS = {'trajectories': {'.xtc', '.trr', '.dcd', '.lammpstrj'},
               'topologies': {'.gro', '.pdb'}}
@@ -32,14 +32,15 @@ class Task(object):
         self.script = script
         self.simulation = simulation
         self.current_proc = None
-        self.output_dir = None
-
-    def create_dir(self):
-        """Set up the local directory this task. """
         self.output_dir = os.path.join(self.simulation.output_dir, self.name)
         if not os.path.isdir(self.output_dir):
             os.mkdir(self.output_dir)
 
+        self.hostname = None
+        self.username = None
+
+    def create_dir(self):
+        """Set up the local directory for this task. """
         for in_file_path in self.simulation.input_files:
             # TODO: tidy up
             in_file_name = os.path.split(in_file_path)[1]
@@ -54,7 +55,7 @@ class Task(object):
             os.symlink(rel_in_path, rel_link_path)
             os.chdir(cwd)
 
-    def execute(self, hostname='', username=''):
+    def execute(self, hostname=None, username=None):
         """Execute the task.
 
         Parameters
@@ -66,11 +67,15 @@ class Task(object):
 
         """
         if hostname:
-            client = SSHClient()
-            client.load_system_host_keys()
-            client.connect(hostname='rahman.vuse.vanderbilt.edu', username='ctk3b')
-            self.simulation.create_remote_dir(client, hostname, username)
-            self._execute_remote(client)
+            self.client = SSHClient()
+            self.client.load_system_host_keys()
+            self.client.connect(hostname=hostname, username=username)
+            # TODO: Is there really not a way to get this from SSHClient()?
+            self.client.hostname = hostname
+            self.client.username = username
+
+            self.simulation.create_remote_dir(self.client)
+            self._execute_remote(self.client)
         else:
             self._execute_local()
 
@@ -84,6 +89,7 @@ class Task(object):
 
         """
         # if uses_PBS(client):
+        self.pbs_server = True
         sftp = client.open_sftp()
         pbs_filename = os.path.join(self.simulation.remote_dir, '{}.pbs'.format(self.name))
         with sftp.open(pbs_filename, 'w') as fh:
@@ -93,7 +99,8 @@ class Task(object):
             body = '\n'.join(self.script)
             fh.write(''.join((header, body)))
 
-        stdin, stdout, stderr = client.exec_command('qsub {}'.format(pbs_filename))
+        _, stdout, stderr = client.exec_command('qsub {}'.format(pbs_filename))
+        self.pbs_id = stdout.readlines()[0].split('.')[0]
 
     def _execute_local(self):
         """Execute the task locally. """
@@ -112,6 +119,15 @@ class Task(object):
 
         os.chdir(cwd)
 
+    def sync(self):
+        out_dir = os.path.split(self.simulation.output_dir)[1]
+        rsync_from(flags='-r -h --progress',
+                   src=os.path.join(self.simulation.remote_dir, out_dir, self.name, '*'),
+                   dst=self.output_dir,
+                   user=self.client.username,
+                   host=self.client.hostname,
+                   logger=self.simulation.debug)
+
     def get_output_files(self, file_type):
         """Get all files of a specific type produced by this task.
 
@@ -125,10 +141,10 @@ class Task(object):
         all_files = list()
         if file_type in EXTENSIONS:
             for ext in EXTENSIONS[file_type]:
-                files = glob(os.path.join(self.simulation.output_dir, '*{}'.format(ext)))
+                files = glob(os.path.join(self.output_dir, '*{}'.format(ext)))
                 all_files.extend(files)
         elif file_type.startswith('.'):
-            files = glob(os.path.join(self.simulation.output_dir, '*{}'.format(file_type)))
+            files = glob(os.path.join(self.output_dir, '*{}'.format(file_type)))
             all_files.extend(files)
         return all_files
 
@@ -139,4 +155,21 @@ class Task(object):
         -------
 
         """
-        pass
+        status = dict()
+        if self.pbs_server:
+            if not self.pbs_id:
+                raise RuntimeError('This task does not have a `pbs_id`. Have you'
+                                   'run `task.execute` yet?')
+            _, stdout, stderr = self.client.exec_command('qstat -f {}'.format(self.pbs_id))
+            if stderr.readlines():
+                raise IOError(stderr.read().decode('utf-8'))
+            content = stdout.readlines()[1:]
+            for line in content:
+                if '=' in line:
+                    entry, value = line.split('=', 1)
+                    status[entry.strip()] = value.strip()
+        return status
+
+
+
+

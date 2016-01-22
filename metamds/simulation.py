@@ -7,7 +7,7 @@ import tempfile
 from six import string_types
 
 from metamds import Task
-from metamds.io import cmd_line
+from metamds.io import rsync_to
 
 
 class Simulation(object):
@@ -67,43 +67,40 @@ class Simulation(object):
         handler.setFormatter(formatter)
         self.debug.addHandler(handler)
 
-    def create_remote_dir(self, client, host, user):
+    def create_remote_dir(self, client):
         """Create a copy of all input files and `output_dir` on a remote host.
 
         Parameters
         ----------
         client : paramiko.SSHClient
-        host : str
-        user :  str
 
         """
-        stdin, stdout, stderr = client.exec_command('mktemp -d; pwd')
+        _, stdout, stderr = client.exec_command('mktemp -d; pwd')
         if stderr.readlines():
-            raise IOError(stderr.readlines()[0].rstrip())
+            raise IOError(stderr.read().decode('utf-8'))
         remote_dir, home = (line.rstrip() for line in stdout.readlines())
-        # TODO: tidy up
+        # TODO: tidy up temp dir creation and copying
         self.remote_dir = os.path.join(home, remote_dir[5:])
 
-        stdin, stdout, stderr = client.exec_command('rsync -r {tmp_dir} ~'.format(tmp_dir=remote_dir))
+        _, stdout, stderr = client.exec_command('rsync -r {tmp_dir} ~'.format(
+            tmp_dir=remote_dir))
         if stderr.readlines():
-            raise IOError(stderr.readlines()[0].rstrip())
+            raise IOError(stderr.read().decode('utf-8'))
 
-        cmd = 'rsync -h --progress --partial {src} {user}@{host}:{dst}'.format(
-            src=' '.join(self.input_files), dst=self.remote_dir,
-            user=user, host=host)
-        out, err = cmd_line(cmd)
-        if err:
-            raise IOError(err)
-        for line in out.splitlines():
-            self.debug.debug(line)
-
-        cmd = 'rsync -r -h --links --progress --partial {src} {user}@{host}:{dst}'.format(
-            src=self.output_dir, dst=self.remote_dir, user=user, host=host)
-        out, err = cmd_line(cmd)
-        if err:
-            raise IOError(err)
-        for line in out.splitlines():
-            self.debug.debug(line)
+        # Move input files
+        rsync_to(flags='-r -h --progress',
+                 src=' '.join(self.input_files),
+                 dst=self.remote_dir,
+                 user=client.username,
+                 host=client.hostname,
+                 logger=self.debug)
+        # Move output directory including relative symlinks to input files
+        rsync_to(flags='-r -h --links --progress',
+                 src=self.output_dir,
+                 dst=self.remote_dir,
+                 user=client.username,
+                 host=client.hostname,
+                 logger=self.debug)
 
     def tasks(self):
         """Yield all tasks in this simulation. """
@@ -135,10 +132,12 @@ class Simulation(object):
     def parametrize(self, **parameters):
         """Parametrize and add a task to this simulation. """
         task = Task(simulation=self)
-        self.add_task(task)
 
         parameters['input_dir'] = os.path.relpath(self.input_dir, task.output_dir)
+        #parameters['input_dir'] = self.input_dir
 
+        cwd = os.getcwd()
+        os.chdir(task.output_dir)
         if hasattr(self.template, '__call__'):
             script = self.template(**parameters)
         # elif is_url(self.template):
@@ -156,7 +155,13 @@ class Simulation(object):
                              'be an iterable of strings or a function that '
                              'returns an iterable of strings.'.format(self.template))
 
+        os.chdir(cwd)
+        # Parametrizing a task can and typically will produce input files.
+        self.input_files = [f for f in glob('{}/*'.format(self.input_dir))
+                            if not f.endswith(('.py', '.ipynb')) and
+                            f != self.output_dir]
         task.script = script
+        self.add_task(task)
         return task
 
 
