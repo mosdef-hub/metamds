@@ -38,6 +38,7 @@ class Task(object):
 
         self.hostname = None
         self.username = None
+        self.pbs_server = None
 
     def create_dir(self):
         """Set up the local directory for this task. """
@@ -108,7 +109,9 @@ class Task(object):
         cwd = os.getcwd()
         os.chdir(self.output_dir)
 
+        print(cwd, self.output_dir)
         for line in self.script:
+            print(line)
             self.simulation.info.info('Running: {}'.format(line))
             out, err = cmd_line(line)
             for line in out.decode('utf-8').splitlines():
