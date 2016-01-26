@@ -13,15 +13,15 @@ def test_lysozyme_tutorial():
 
     script = (pdb2gmx, editconf, solvate, ion_grompp, genion)
     # build = mds.Task(name='build', project=tutorial, script=script, input_dir=os.path.join(os.path.dirname(os.path.realpath(__file__)),'lysozyme'))
-    build = mds.Task(name='build', project=tutorial, script=script)
+    build = mds.Task(name='build', simulation=tutorial, script=script)
 
     em_grompp = 'gmx grompp -f minim.mdp -c 1AKI_solv_ions.gro -p topol.top -o em.tpr'
     em_mdrun = 'gmx mdrun -v -deffnm em'
 
     script = (em_grompp, em_mdrun)
-    minimize = mds.Task(name='minimize', project=tutorial, script=script)
+    minimize = mds.Task(name='minimize', simulation=tutorial, script=script)
 
     tutorial.add_task(build)
     tutorial.add_task(minimize)
     tutorial.execute()
-    print(tutorial.dir)
+    print(tutorial.output_dir)
