@@ -28,6 +28,8 @@ class Simulation(object):
 
         if not input_dir:
             self.input_dir = os.getcwd()
+        self.input_dir = input_dir
+
         self.input_files = [f for f in glob('{}/*'.format(self.input_dir))
                             if not f.endswith(('.py', '.ipynb'))]
 
