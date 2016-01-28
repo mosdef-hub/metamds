@@ -125,7 +125,6 @@ class Simulation(object):
         """Add a task to this simulation. """
         if not task.name:
             task.name = 'task_{:d}'.format(self.n_tasks + 1)
-        task.create_dir()
         self._tasks[task.name] = task
 
     def execute(self):

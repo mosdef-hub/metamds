@@ -35,6 +35,7 @@ class Task(object):
         self.output_dir = os.path.join(self.simulation.output_dir, self.name)
         if not os.path.isdir(self.output_dir):
             os.mkdir(self.output_dir)
+        self.create_dir()
 
         self.hostname = None
         self.username = None
@@ -174,6 +175,8 @@ class Task(object):
                 if '=' in line:
                     entry, value = line.split('=', 1)
                     status[entry.strip()] = value.strip()
+
+        self.latest_status = status
         return status
 
 
