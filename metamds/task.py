@@ -123,13 +123,16 @@ class Task(object):
         os.chdir(cwd)
 
     def sync(self):
-        out_dir = os.path.split(self.simulation.output_dir)[1]
-        rsync_from(flags='-r -h --progress',
-                   src=os.path.join(self.simulation.remote_dir, out_dir, self.name, '*'),
-                   dst=self.output_dir,
-                   user=self.client.username,
-                   host=self.client.hostname,
-                   logger=self.simulation.debug)
+        if self.simulation.remote_dir:
+            out_dir = os.path.split(self.simulation.output_dir)[1]
+            rsync_from(flags='-r -h --progress',
+                       src=os.path.join(self.simulation.remote_dir, out_dir, self.name, '*'),
+                       dst=self.output_dir,
+                       user=self.client.username,
+                       host=self.client.hostname,
+                       logger=self.simulation.debug)
+        else:
+            print('Nothing to sync.')
 
     def get_output_files(self, file_type):
         """Get all files of a specific type produced by this task.

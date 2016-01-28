@@ -14,7 +14,7 @@ def cmd_line(line):
     return out, err
 
 
-# TODO: fix this disgustingness
+# TODO: tidy up this madness
 def rsync_to(flags, src, dst, user, host, logger=None):
     cmd = 'rsync {flags} {src} {user}@{host}:{dst}'.format(**locals())
     _rsync(cmd, logger)

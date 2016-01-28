@@ -38,9 +38,6 @@ class Simulation(object):
             self.input_dir = os.getcwd()
         self.input_dir = input_dir
 
-        self.input_files = [f for f in glob('{}/*'.format(self.input_dir))
-                            if not f.endswith(('.py', '.ipynb'))]
-
         if not output_dir:
             self._tmp_dir = tempfile.mkdtemp(prefix='metamds_')
             output_dir = os.path.join(self._tmp_dir, self.name)
