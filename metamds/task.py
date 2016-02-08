@@ -76,7 +76,8 @@ class Task(object):
             self.client.hostname = hostname
             self.client.username = username
 
-            self.simulation.create_remote_dir(self.client)
+            if not self.simulation.remote_dir:
+                self.simulation.create_remote_dir(self.client)
             self._execute_remote(self.client)
         else:
             self._execute_local()
@@ -126,7 +127,7 @@ class Task(object):
     def sync(self):
         if self.simulation.remote_dir:
             out_dir = os.path.split(self.simulation.output_dir)[1]
-            rsync_from(flags='-r -h --progress',
+            rsync_from(flags='-r -h --progress --partial',
                        src=os.path.join(self.simulation.remote_dir, out_dir, self.name, '*'),
                        dst=self.output_dir,
                        user=self.client.username,

@@ -79,27 +79,28 @@ class Simulation(object):
         client : paramiko.SSHClient
 
         """
-        _, stdout, stderr = client.exec_command('mktemp -d; pwd')
-        if stderr.readlines():
-            raise IOError(stderr.read().decode('utf-8'))
-        remote_dir, home = (line.rstrip() for line in stdout.readlines())
-        # TODO: tidy up temp dir creation and copying
-        self.remote_dir = os.path.join(home, remote_dir[5:])
+        if not self.remote_dir:
+            _, stdout, stderr = client.exec_command('mktemp -d; pwd')
+            if stderr.readlines():
+                raise IOError(stderr.read().decode('utf-8'))
+            remote_dir, home = (line.rstrip() for line in stdout.readlines())
+            # TODO: tidy up temp dir creation and copying
+            self.remote_dir = os.path.join(home, remote_dir[5:])
 
-        _, stdout, stderr = client.exec_command('rsync -r {tmp_dir} ~'.format(
-            tmp_dir=remote_dir))
-        if stderr.readlines():
-            raise IOError(stderr.read().decode('utf-8'))
+            cmd = 'rsync -r {tmp_dir} ~'.format(tmp_dir=remote_dir)
+            _, stdout, stderr = client.exec_command(cmd)
+            if stderr.readlines():
+                raise IOError(stderr.read().decode('utf-8'))
 
         # Move input files
-        rsync_to(flags='-r -h --progress',
+        rsync_to(flags='-r -h --progress --partial',
                  src=' '.join(self.input_files),
                  dst=self.remote_dir,
                  user=client.username,
                  host=client.hostname,
                  logger=self.debug)
         # Move output directory including relative symlinks to input files
-        rsync_to(flags='-r -h --links --progress',
+        rsync_to(flags='-r -h --links --progress --partial',
                  src=self.output_dir,
                  dst=self.remote_dir,
                  user=client.username,
@@ -127,10 +128,14 @@ class Simulation(object):
             task.name = 'task_{:d}'.format(self.n_tasks + 1)
         self._tasks[task.name] = task
 
-    def execute(self):
+    def execute_all(self, hostname=None, username=None):
         """Execute all tasks in this simulation. """
         for task in self.tasks():
-            task.execute()
+            task.execute(hostname=hostname, username=username)
+
+    def sync_all(self):
+        for task in self.tasks():
+            task.sync()
 
     def parametrize(self, **parameters):
         """Parametrize and add a task to this simulation. """
