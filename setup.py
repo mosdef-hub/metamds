@@ -1,12 +1,10 @@
-"""metamds
-"""
+"""metaMDS """
 
 from __future__ import print_function
 
 import os
 import sys
 from setuptools import setup, find_packages
-from setuptools.command.test import test as TestCommand
 
 #####################################
 VERSION = "0.1.0"
@@ -27,19 +25,6 @@ if sys.argv[-1] == 'publish':
     os.system('python setup.py sdist upload')
     sys.exit()
 
-
-class PyTest(TestCommand):
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = []
-        self.test_suite = True
-
-    def run_tests(self):
-        import pytest
-        errcode = pytest.main(['metamds'])
-        sys.exit(errcode)
-
-
 with open('requirements.txt') as reqs_file:
     reqs = [line.strip() for line in reqs_file]
 
@@ -47,7 +32,7 @@ with open('requirements.txt') as reqs_file:
 setup(
     name='metamds',
     version=__version__,
-    description=__doc__.split('\n'),
+    description=__doc__.split('\n')[0],
     long_description=__doc__,
     author='Janos Sallai, Christoph Klein',
     author_email='janos.sallai@vanderbilt.edu, christoph.klein@vanderbilt.edu',
@@ -76,6 +61,4 @@ setup(
         'Operating System :: MacOS',
     ],
     test_suite='tests',
-    cmdclass={'test': PyTest},
-    extras_require={'utils': ['pytest']},
 )
