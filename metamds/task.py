@@ -1,7 +1,7 @@
 from glob import glob
 import os
 
-from paramiko import SSHClient
+from paramiko import SSHClient, AutoAddPolicy
 
 from metamds.io import cmd_line, rsync_from
 
@@ -71,6 +71,7 @@ class Task(object):
         if hostname:
             self.client = SSHClient()
             self.client.load_system_host_keys()
+            self.client.set_missing_host_key_policy(AutoAddPolicy())
             self.client.connect(hostname=hostname, username=username)
             # TODO: Is there really not a way to get this from SSHClient()?
             self.client.hostname = hostname
