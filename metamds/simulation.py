@@ -36,7 +36,7 @@ class Simulation(object):
 
         if not input_dir:
             self.input_dir = os.getcwd()
-        self.input_dir = input_dir
+        self.input_dir = os.path.abspath(input_dir)
 
         if not output_dir:
             self._tmp_dir = tempfile.mkdtemp(prefix='metamds_')
