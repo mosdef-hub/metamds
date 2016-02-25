@@ -2,11 +2,18 @@ import shlex
 from subprocess import Popen, PIPE
 
 
-def cmd_line(line):
+def cmd_line(line, stdin=None):
     """ """
-    args = shlex.split(line)
-    proc = Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    out, err = proc.communicate()
+    if '|' in line:
+        cmds = line.split('|')
+    else:
+        cmds = [line]
+    procs = []
+    for cmd in cmds:
+        args = shlex.split(cmd)
+        procs.append(Popen(args, stdin=stdin, stdout=PIPE, stderr=PIPE))
+        stdin = procs[-1].stdout
+    out, err = procs[-1].communicate()
     # Gromacs logs a lot of its informational output to stderr.
     if 'GROMACS' in err.decode('utf-8'):
         out += err

@@ -54,7 +54,8 @@ class Task(object):
             rel_in_path = os.path.relpath(in_file_path, self.output_dir)
             rel_link_path = os.path.relpath(link_path, self.output_dir)
 
-            os.symlink(rel_in_path, rel_link_path)
+            if not os.path.exists(rel_link_path):
+                os.symlink(rel_in_path, rel_link_path)
             os.chdir(cwd)
 
     def execute(self, hostname=None, username=None):

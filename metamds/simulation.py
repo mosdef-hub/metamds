@@ -142,7 +142,6 @@ class Simulation(object):
         task = Task(simulation=self)
 
         parameters['input_dir'] = os.path.relpath(self.input_dir, task.output_dir)
-        #parameters['input_dir'] = self.input_dir
 
         cwd = os.getcwd()
         os.chdir(task.output_dir)
