@@ -34,7 +34,7 @@ def rsync_from(flags, src, dst, user, host, logger=None):
 
 def _rsync(cmd, logger=None):
     out, err = cmd_line(cmd)
-    if err:
+    if "rsync" in err.decode('utf-8'):
         raise IOError(err.decode('utf-8'))
     if logger:
         logger.debug(cmd)
