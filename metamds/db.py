@@ -94,8 +94,8 @@ def query_sim(host="127.0.0.1", port=27017, database="shearing_simulations", use
     **kwargs : keys of lists of strings (ie {"A": ["a"], "B": ["b", "bb"]} or A=["a"])
         Fields and field values being queried in a simulation.
     
-    Yields
-    ------
+    Returns
+    -------
     cursor : pymongo.Cursor()
         An iterable python object that contains all the documents that the query specifies.
     """
@@ -156,8 +156,8 @@ def retrieve_all(host="127.0.0.1", port=27017, database="shearing_simulations", 
     collection : str, optional 
         Database collection name for doc location (default is tasks).
     
-    Yields
-    ------
+    Returns
+    -------
     cursor : pymongo.Cursor()
         An iterable python object that contains all the documents that the query specifies.
     """
@@ -175,8 +175,8 @@ def get_uri(name):
     name : str
         file or directory name
     
-    Yields
-    ------
+    Returns
+    -------
     full_uri : str
         full file or directory name
     """   
