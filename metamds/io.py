@@ -34,7 +34,7 @@ def rsync_from(flags, src, dst, user, host, logger=None):
 
 def _rsync(cmd, logger=None):
     out, err = cmd_line(cmd)
-    if "rsync" in err.decode('utf-8'):
+    if "rsync" in err.decode('utf-8'): # Work around for NERSC system that returns a header when syncing TJ
         raise IOError(err.decode('utf-8'))
     if logger:
         logger.debug(cmd)
