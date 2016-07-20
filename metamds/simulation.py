@@ -8,6 +8,7 @@ from six import string_types
 
 from metamds import Task
 from metamds.io import rsync_to
+from metamds.db import add_doc_db
 
 
 class Simulation(object):
@@ -71,7 +72,7 @@ class Simulation(object):
         handler.setFormatter(formatter)
         self.debug.addHandler(handler)
 
-    def create_remote_dir(self, client):
+    def create_remote_dir(self, client, hostname, username):
         """Create a copy of all input files and `output_dir` on a remote host.
 
         Parameters
@@ -80,7 +81,16 @@ class Simulation(object):
 
         """
         if not self.remote_dir:
-            _, stdout, stderr = client.exec_command('mktemp -d; pwd')
+            #---------------------------------------------------------------- TJ
+            # For different resources it is necessary to move to preferred production directories
+            # TODO: Add as variable somewhere rather than hardcoding
+            if "nersc" in hostname:
+                _, stdout, stderr = client.exec_command('cd $SCRATCH; mktemp -d; pwd')
+            elif "accre" in hostname:
+                _, stdout, stderr = client.exec_command('cd /scratch/{}; mktemp -d; pwd'.format(username))
+            if "rahman" in hostname:
+                _, stdout, stderr = client.exec_command('mktemp -d; pwd')
+            #---------------------------------------------------------------- TJ 
             if stderr.readlines():
                 raise IOError(stderr.read().decode('utf-8'))
             remote_dir, home = (line.rstrip() for line in stdout.readlines())
@@ -171,6 +181,56 @@ class Simulation(object):
         self.add_task(task)
         return task
 
+    def add_to_db(self, host="127.0.0.1", port=27017, database="shearing_simulations", 
+                  user=None, password=None, collection="tasks", use_full_uri=False, 
+                  update_duplicates=False, **parameters):
+        """Adds simulation parameters and io file locations to db.
+        
+        Parameters
+        ----------
+        host : str, optional
+            database connection host (the default is 127.0.0.1, or the local computer being used)
+        port : int, optional
+            database host port (default is 27017, which is the pymongo default port).
+        database : str, optional
+            name of the database being used (default is shearing_simulations).
+        user : str, optional 
+            user name (default is None, meaning the database is public).
+        password : str, optional 
+            user password (default is None, meaning there is no password access to database).
+        collection : str, optional 
+            database collection name for doc location (default is tasks).
+        use_full_uri : bool, optional 
+            optional use of full uri path name, necessary for hosted database (default is False,
+            meaning the files being used in the database are local).
+        update_duplicates : bool, optional
+            determines ifduplicates in the database will be updated (default is False, meaning 
+            the added doc should not replace an existing doc that is equivalent)
+        **parameters : dict, optional
+            keys and fields added in doc.
+        """
+        # TODO:: add user//pw functionality when MongoDB is hosted
+        
+        for key in parameters:
+            if type(parameters[key]).__name__ in ['function', 'type']:
+                parameters[key] = parameters[key].__name__
+       
+        if use_full_uri:
+            output_dir = get_uri("{}/task_{:d}/".format(self.output_dir, self.n_tasks-1))
+            input_dir = get_uri(self.input_dir)
+            input_files = get_uri(self.input_files)
+        else:
+            output_dir = "{}/task_{:d}/".format(self.output_dir, self.n_tasks-1)
+            input_dir = self.input_dir
+            input_files = self.input_files
+
+        parameters['output_dir'] = output_dir
+        parameters['input_dir'] = input_dir
+        parameters['input_files'] = input_files
+        
+        add_doc_db(host=host, port=port,database=database, user=user, password=password,
+                   collection=collection, doc=parameters, 
+                   update_duplicates=update_duplicates) 
 
 def _is_iterable_of_strings(script):
     try:

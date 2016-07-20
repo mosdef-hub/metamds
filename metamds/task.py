@@ -23,6 +23,22 @@ module load gromacs
 
 """
 
+NERSC_HEADER = """#!/bin/bash -l
+#SBATCH -p regular
+#SBATCH -N 1
+#SBATCH -c 48
+#SBATCH -t {walltime}
+#SBATCH -L SCRATCH
+#SBATCH -J {name}
+#SBATCH -qos=normal
+
+echo $PWD
+cd {tmp_dir}/{output}/{name}
+echo $PWD
+
+module load gromacs/5.1.2
+
+"""
 
 class Task(object):
     def __init__(self, script=None, simulation=None, name=None):
@@ -79,12 +95,12 @@ class Task(object):
             self.client.username = username
 
             if not self.simulation.remote_dir:
-                self.simulation.create_remote_dir(self.client)
-            self._execute_remote(self.client)
+                self.simulation.create_remote_dir(self.client, hostname, username)
+            self._execute_remote(self.client, hostname) # hostname added for HEADER check TJJ
         else:
             self._execute_local()
 
-    def _execute_remote(self, client, walltime='1:00:00'):
+    def _execute_remote(self, client, hostname, walltime='96:00:00'):
         """Execute the task on a remote server.
 
         Parameters
@@ -98,13 +114,23 @@ class Task(object):
         sftp = client.open_sftp()
         pbs_filename = os.path.join(self.simulation.remote_dir, '{}.pbs'.format(self.name))
         with sftp.open(pbs_filename, 'w') as fh:
-            header = PBS_HEADER.format(walltime=walltime, name=self.name,
-                                       output=os.path.basename(self.simulation.output_dir),
-                                       tmp_dir=self.simulation.remote_dir)
+            # TODO: right now the header, hostname, and walltime are all hardcoded. TJJ
+            # This fix could go hand in hand with finding a way to get info from SSHClient(). TJJ
+            if "rahman" in hostname:
+                header = PBS_HEADER.format(walltime=walltime, name=self.name,
+                                           output=os.path.basename(self.simulation.output_dir),
+                                           tmp_dir=self.simulation.remote_dir)
+                submit_line = 'qsub'
+            if "nersc" in hostname:
+                walltime = '28:00:00'
+                header = NERSC_HEADER.format(walltime=walltime, name=self.name,
+                                             output=os.path.basename(self.simulation.output_dir),
+                                             tmp_dir=self.simulation.remote_dir)
+                submit_line = 'sbatch'
             body = '\n'.join(self.script)
             fh.write(''.join((header, body)))
 
-        _, stdout, stderr = client.exec_command('qsub {}'.format(pbs_filename))
+        _, stdout, stderr = client.exec_command('{} {}'.format(submit_line, pbs_filename))
         self.pbs_id = stdout.readlines()[0].split('.')[0]
 
     def _execute_local(self):
