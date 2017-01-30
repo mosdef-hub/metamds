@@ -48,8 +48,6 @@ class Simulation(object):
                 os.mkdir(output_dir)
         self.output_dir = os.path.abspath(output_dir)
 
-        if not input_dir:
-            self.input_dir = os.getcwd()
         self.input_files = [f for f in glob('{}/*'.format(self.input_dir))
                             if not f.endswith(('.py', '.ipynb')) and
                             f != self.output_dir]
